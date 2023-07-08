@@ -23,7 +23,7 @@ def select_file():
     cls()
     files = [file for file in os.listdir(FILES) if file.endswith(".pdf")]
     if len(files) == 0:
-        return "file.pdf" if os.path.exists("file.pdf") else None
+        return "Tianyu_Shi_resume.pdf" if os.path.exists("Tianyu_Shi_resume.pdf") else None
     print("📁 Select a file")
     for i, file in enumerate(files):
         print(f"{i+1}. {file}")
