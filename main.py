@@ -19,10 +19,10 @@ from llama_index import (
 from utils import CACHE, FILES, models, cls, handle_save, handle_exit, initialize, select_file
 
 load_dotenv()
-os.environ["OPENAI_API_KEY"] = "your key"
+os.environ["OPENAI_API_KEY"] = ""
 openai.api_key = os.environ["OPENAI_API_KEY"]
 history = []
-
+NUM_ROUND=3
 llm_predictor = LLMPredictor(llm=ChatOpenAI(temperature=0.618, model_name=models["gpt-3"], max_tokens=256))
 service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, chunk_size_limit=1024)
 
@@ -76,9 +76,16 @@ def generate_chat_completion(prompt):
         time.sleep(retry_time)
         return generate_chat_completion(prompt)   
     
-def generate_interview_summary(context_history):
+def generate_interview_summary(context_history,round_sum=True):
+    if round_sum:
+        context=str(f'Assume you are the interviewer, based on the discussion:{context_history[-1]},provide an assessment for the response of interviewee:')
+    else:
+        context=str(f'Assume you are the interviewer, based on the discussion:{context_history},provide the final assessment for the response of interviewee:')
+    return generate_chat_completion(context)
+
     
-    context=str(f'Assume you are the interviewer, based on the discussion:{context_history[-1]},provide an assessment for the response of interviewee:')
+def follow_up(context_history):
+    context=str(f'Assume you are the interviewer, based on the response from interviewee:{context_history}, provide a follow up for the response:')
     return generate_chat_completion(context)
 
 
@@ -88,7 +95,7 @@ def interview_assistant(index):
 
     # 提取简历信息并设置对话上下文,生成问题
     # context = extract_resume_information(resume)
-    context = 'briefly generate 5 interview questions for him based on his resume'
+    context = 'briefly and logically  generate 5 interview questions for him based on his resume, from the aspect of behavior, coding skill, system design, research experience, please only provide the question:'
     context_history = []
     query_engine = index.as_query_engine(response_mode="compact")
     response = str(query_engine.query(context))
@@ -99,31 +106,44 @@ def interview_assistant(index):
     # for question in questions:
     #     print(question)
 
-    for i in range(len(questions)):
-        print('\n❓：')
-        print(questions[i])
+    for j in range(len(questions)):
+        print(f'\n round {j}❓：')
+        print(questions[j])
+        # print("\n👻 Response: " + str(response))
+
+        # # 根据需要进行对话结束的判断
+        # if should_end_interview(context_history):
+        #     break
+        for i in range(NUM_ROUND):
+            prompt = input("\n😎 interviewee: ")
+            if prompt == "exit":
+                handle_exit()
+            elif prompt == "save":
+                handle_save(str(file_name), context_history)
+            response=follow_up(prompt)
+            print('\n interviewer：')
+            print(response[0])
+            # 保存对话历史记录和评价
+            context_history.append({"interviewee": str(prompt), "interviewer": str(response)})
+
         prompt = input("\n😎 interviewee: ")
         if prompt == "exit":
             handle_exit()
         elif prompt == "save":
             handle_save(str(file_name), context_history)
-
-        # print("\n👻 Response: " + str(response))
-
-        # 保存对话历史记录和评价
-        context_history.append({"interviewee": prompt, "interviewer": str(resume)})
-
-        # # 根据需要进行对话结束的判断
-        # if should_end_interview(context_history):
-        #     break
-
+        response=follow_up(prompt)
+        context_history.append({"interviewee": str(prompt), "interviewer": str(response)})
         # 生成面试总结
         interview_summary = generate_interview_summary(context_history)
 
         # 展示面试总结
-        print("\n📝 Interview Summary: ")
-        print(interview_summary)
+        print(f"\n📝 Interview Summary for  round {j}: ")
+        print(interview_summary[0])
+    interview_summary_final=generate_interview_summary(context_history, round_sum=False)
+    print("\n📝 Your final assessment: ")
+    print(interview_summary_final[0])
 
+    
 
 def ask(file_name):
     try:
